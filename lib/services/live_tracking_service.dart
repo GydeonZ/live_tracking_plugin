@@ -202,7 +202,8 @@ class LiveTrackingService extends GetxService {
             locationSettings: LocationSettings(
               accuracy: desiredAccuracy,
               distanceFilter: 5, // Update setiap 5 meter
-              timeLimit: Duration(seconds: updateIntervalSeconds.value),
+              // REMOVED timeLimit - ini menyebabkan stream berhenti setiap 5 detik!
+              // timeLimit tidak boleh ada di sini
             ),
           ).listen(
             (Position position) {
@@ -215,6 +216,14 @@ class LiveTrackingService extends GetxService {
               final errorMsg = 'Location stream error: $e';
               debugPrint(errorMsg);
               onError?.call(errorMsg);
+
+              // Try to restart stream setelah delay
+              Future.delayed(const Duration(seconds: 2), () {
+                if (isTracking.value && currentSession.value != null) {
+                  debugPrint('Attempting to restart location stream...');
+                  _startLocationStream();
+                }
+              });
             },
           );
     } catch (e) {
@@ -252,12 +261,13 @@ class LiveTrackingService extends GetxService {
         isSynced: false,
       );
 
-      // Save to database
+      // Save to database - DON'T return on error, stream must continue!
       try {
         await _dbHelper.insertPoint(point);
       } catch (dbError) {
-        onError?.call('Database error saving point: $dbError');
-        return;
+        debugPrint('⚠️ Database error saving point: $dbError');
+        // Don't return - stream continues even if DB has issues
+        onError?.call('Database error: $dbError');
       }
 
       // Update distance jika ada previous point
@@ -265,8 +275,9 @@ class LiveTrackingService extends GetxService {
         try {
           final distance = lastLocation.value!.distanceTo(point);
           totalDistance.value += distance;
-          debugPrint('Distance updated: ${totalDistance.value}m');
+          debugPrint('Distance updated: ${totalDistance.value.toStringAsFixed(2)}m');
         } catch (distError) {
+          debugPrint('⚠️ Distance calculation error: $distError');
           onError?.call('Distance calculation error: $distError');
         }
       }
@@ -276,14 +287,15 @@ class LiveTrackingService extends GetxService {
       pointCount.value = currentPoints.length;
 
       debugPrint(
-        'Location point added: ${currentPoints.length} points, ${totalDistance.value.toStringAsFixed(2)}m distance',
+        '✅ Location point added: ${currentPoints.length} points, ${totalDistance.value.toStringAsFixed(2)}m distance',
       );
 
       // Callback
       onLocationUpdate?.call(point);
     } catch (e) {
+      debugPrint('❌ Critical error processing location: $e');
       onError?.call('Error processing location: $e');
-      debugPrint('Tracking error: $e');
+      // Don't rethrow - let stream continue
     }
   }
 

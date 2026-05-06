@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -167,9 +168,38 @@ class DatabaseHelper {
   // ===== Location Point Methods =====
 
   Future<String> insertPoint(LocationPoint point) async {
-    final db = await database;
-    await db.insert(tableLocationPoints, _locationPointToMap(point), conflictAlgorithm: ConflictAlgorithm.replace);
-    return point.id;
+    try {
+      final db = await database;
+
+      // Convert to map with error checking
+      final pointMap = _locationPointToMap(point);
+      if (pointMap.isEmpty) {
+        throw Exception('Failed to convert location point to map');
+      }
+
+      // Insert with retry logic
+      int retries = 3;
+      while (retries > 0) {
+        try {
+          await db.insert(tableLocationPoints, pointMap, conflictAlgorithm: ConflictAlgorithm.replace);
+          debugPrint('Location point inserted successfully: ${point.id}');
+          return point.id;
+        } catch (e) {
+          retries--;
+          if (retries > 0) {
+            debugPrint('Retry insert point (${4 - retries}/3): $e');
+            await Future.delayed(const Duration(milliseconds: 100));
+          } else {
+            throw Exception('Failed to insert point after 3 retries: $e');
+          }
+        }
+      }
+
+      return point.id;
+    } catch (e) {
+      debugPrint('Error inserting location point: $e');
+      rethrow;
+    }
   }
 
   Future<int> insertPoints(List<LocationPoint> points) async {
