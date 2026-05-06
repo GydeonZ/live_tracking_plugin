@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 import 'package:get/get.dart';
@@ -193,34 +194,51 @@ class LiveTrackingService extends GetxService {
   void _startLocationStream() {
     final desiredAccuracy = _gpsAccuracyToLocationAccuracy(gpsAccuracy.value);
 
-    _positionStream =
-        Geolocator.getPositionStream(
-          locationSettings: LocationSettings(
-            accuracy: desiredAccuracy,
-            distanceFilter: 5, // Update setiap 5 meter
-            timeLimit: Duration(seconds: updateIntervalSeconds.value),
-          ),
-        ).listen(
-          (Position position) {
-            _processLocation(position);
-          },
-          onError: (e) {
-            onError?.call('Location stream error: $e');
-          },
-        );
+    debugPrint('Starting location stream with accuracy: $desiredAccuracy');
+
+    try {
+      _positionStream =
+          Geolocator.getPositionStream(
+            locationSettings: LocationSettings(
+              accuracy: desiredAccuracy,
+              distanceFilter: 5, // Update setiap 5 meter
+              timeLimit: Duration(seconds: updateIntervalSeconds.value),
+            ),
+          ).listen(
+            (Position position) {
+              debugPrint(
+                'Location received: ${position.latitude}, ${position.longitude}, accuracy: ${position.accuracy}',
+              );
+              _processLocation(position);
+            },
+            onError: (e) {
+              final errorMsg = 'Location stream error: $e';
+              debugPrint(errorMsg);
+              onError?.call(errorMsg);
+            },
+          );
+    } catch (e) {
+      final errorMsg = 'Error starting location stream: $e';
+      debugPrint(errorMsg);
+      onError?.call(errorMsg);
+    }
   }
 
   /// Process location update
   Future<void> _processLocation(Position position) async {
     try {
-      if (currentSession.value == null) return;
+      if (currentSession.value == null) {
+        onError?.call('No active tracking session');
+        return;
+      }
 
       // Check accuracy threshold
       if (position.accuracy > minAccuracyThreshold.value) {
+        debugPrint('Location rejected: accuracy ${position.accuracy} > threshold ${minAccuracyThreshold.value}');
         return; // Skip points dengan akurasi buruk
       }
 
-      // Create location point
+      // Create location point with fallback timestamp
       final point = LocationPoint(
         id: uuid.v4(),
         latitude: position.latitude,
@@ -229,28 +247,43 @@ class LiveTrackingService extends GetxService {
         altitude: position.altitude,
         speed: position.speed,
         heading: position.heading,
-        timestamp: position.timestamp,
+        timestamp: position.timestamp ?? DateTime.now(), // Fallback to current time if null
         sessionId: currentSession.value!.id,
         isSynced: false,
       );
 
       // Save to database
-      await _dbHelper.insertPoint(point);
+      try {
+        await _dbHelper.insertPoint(point);
+      } catch (dbError) {
+        onError?.call('Database error saving point: $dbError');
+        return;
+      }
 
       // Update distance jika ada previous point
       if (lastLocation.value != null) {
-        final distance = lastLocation.value!.distanceTo(point);
-        totalDistance.value += distance;
+        try {
+          final distance = lastLocation.value!.distanceTo(point);
+          totalDistance.value += distance;
+          debugPrint('Distance updated: ${totalDistance.value}m');
+        } catch (distError) {
+          onError?.call('Distance calculation error: $distError');
+        }
       }
 
       lastLocation.value = point;
       currentPoints.add(point);
       pointCount.value = currentPoints.length;
 
+      debugPrint(
+        'Location point added: ${currentPoints.length} points, ${totalDistance.value.toStringAsFixed(2)}m distance',
+      );
+
       // Callback
       onLocationUpdate?.call(point);
     } catch (e) {
       onError?.call('Error processing location: $e');
+      debugPrint('Tracking error: $e');
     }
   }
 
