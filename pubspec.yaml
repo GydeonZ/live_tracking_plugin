@@ -1,6 +1,6 @@
 name: live_tracking_plugin
 description: "A comprehensive live tracking package for Flutter with offline support, high accuracy GPS tracking, and real-time synchronization. Compatible with iOS and Android."
-version: 1.0.0
+version: 0.1.0
 homepage: https://github.com/GydeonZ/live_tracking_plugin
 repository: https://github.com/GydeonZ/live_tracking_plugin
 issue_tracker: https://github.com/GydeonZ/live_tracking_plugin/issues

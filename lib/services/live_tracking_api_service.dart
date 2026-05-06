@@ -6,6 +6,8 @@ import '../models/tracking_session.dart';
 class LiveTrackingApiService {
   final Dio dio;
   final String baseUrl;
+  String? endpointSessions;
+  String? endpointPoints;
 
   LiveTrackingApiService({required this.baseUrl, Dio? dioClient}) : dio = dioClient ?? Dio() {
     dio.options.baseUrl = baseUrl;
@@ -17,7 +19,7 @@ class LiveTrackingApiService {
   /// Upload tracking session ke server
   Future<bool> uploadSession(TrackingSession session) async {
     try {
-      final response = await dio.post('/api/v1/tracking/sessions', data: session.toJson());
+      final response = await dio.post(endpointSessions ?? '/api/v1/tracking/sessions', data: session.toJson());
 
       return response.statusCode == 200 || response.statusCode == 201;
     } on DioException catch (e) {
@@ -32,7 +34,7 @@ class LiveTrackingApiService {
       if (points.isEmpty) return true;
 
       final data = points.map((p) => p.toJson()).toList();
-      final response = await dio.post('/api/v1/tracking/points/batch', data: {'points': data});
+      final response = await dio.post(endpointPoints ?? '/api/v1/tracking/points/batch', data: {'points': data});
 
       return response.statusCode == 200 || response.statusCode == 201;
     } on DioException catch (e) {
@@ -44,7 +46,7 @@ class LiveTrackingApiService {
   /// Get all sessions dari server
   Future<List<TrackingSession>> getSessions({int limit = 50, int offset = 0}) async {
     try {
-      final response = await dio.get('/api/v1/tracking/sessions', queryParameters: {'limit': limit, 'offset': offset});
+      final response = await dio.get(endpointSessions ?? '/api/v1/tracking/sessions', queryParameters: {'limit': limit, 'offset': offset});
 
       if (response.statusCode == 200) {
         final data = response.data as Map<String, dynamic>;
@@ -62,7 +64,7 @@ class LiveTrackingApiService {
   /// Get session details dari server
   Future<TrackingSession?> getSession(String sessionId) async {
     try {
-      final response = await dio.get('/api/v1/tracking/sessions/$sessionId');
+      final response = await dio.get(endpointSessions ?? '/api/v1/tracking/sessions/$sessionId');
 
       if (response.statusCode == 200) {
         return TrackingSession.fromJson(response.data);
@@ -78,7 +80,7 @@ class LiveTrackingApiService {
   /// Get location points untuk session dari server
   Future<List<LocationPoint>> getSessionPoints(String sessionId) async {
     try {
-      final response = await dio.get('/api/v1/tracking/sessions/$sessionId/points');
+      final response = await dio.get(endpointSessions ?? '/api/v1/tracking/sessions/$sessionId/points');
 
       if (response.statusCode == 200) {
         final data = response.data as Map<String, dynamic>;

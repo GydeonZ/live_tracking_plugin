@@ -481,8 +481,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 For issues and questions, please visit:
-- GitHub Issues: [https://github.com/yourusername/live_tracking_plugin/issues](https://github.com/yourusername/live_tracking_plugin/issues)
-- Documentation: [https://github.com/yourusername/live_tracking_plugin](https://github.com/yourusername/live_tracking_plugin)
+- GitHub Issues: [Click Here](https://github.com/GydeonZ/live_tracking_plugin/issues)
+- Documentation: [Click Here](https://github.com/GydeonZ/live_tracking_plugin)
 
 ## Acknowledgments
 
