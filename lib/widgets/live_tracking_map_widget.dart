@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/location_point.dart';
 import '../models/tracking_session.dart';
 
-/// Widget untuk menampilkan tracking pada Google Maps
+/// Widget untuk menampilkan tracking pada OpenStreetMap
 class LiveTrackingMapWidget extends StatefulWidget {
   /// Session yang akan ditampilkan
   final TrackingSession session;
@@ -15,19 +16,19 @@ class LiveTrackingMapWidget extends StatefulWidget {
   final LocationPoint? currentLocation;
 
   /// Callback ketika map dibuat
-  final Function(GoogleMapController)? onMapCreated;
+  final Function(MapController)? onMapCreated;
 
   /// Custom polyline color
   final Color polylineColor;
 
-  /// Custom marker color untuk start
-  final BitmapDescriptor? startMarkerIcon;
+  /// Color untuk start marker
+  final Color startMarkerColor;
 
-  /// Custom marker color untuk end
-  final BitmapDescriptor? endMarkerIcon;
+  /// Color untuk end marker
+  final Color endMarkerColor;
 
-  /// Custom marker color untuk current
-  final BitmapDescriptor? currentMarkerIcon;
+  /// Color untuk current marker
+  final Color currentMarkerColor;
 
   /// Show atau hide polyline
   final bool showPolyline;
@@ -45,9 +46,9 @@ class LiveTrackingMapWidget extends StatefulWidget {
     this.currentLocation,
     this.onMapCreated,
     this.polylineColor = Colors.blue,
-    this.startMarkerIcon,
-    this.endMarkerIcon,
-    this.currentMarkerIcon,
+    this.startMarkerColor = Colors.green,
+    this.endMarkerColor = Colors.red,
+    this.currentMarkerColor = Colors.blue,
     this.showPolyline = true,
     this.showMarkers = true,
     this.initialZoom = 15.0,
@@ -58,19 +59,20 @@ class LiveTrackingMapWidget extends StatefulWidget {
 }
 
 class _LiveTrackingMapWidgetState extends State<LiveTrackingMapWidget> {
-  late GoogleMapController mapController;
-  late Set<Polyline> polylines;
-  late Set<Marker> markers;
+  late MapController mapController;
+  late List<Polyline> polylines;
+  late List<Marker> markers;
 
   @override
   void initState() {
     super.initState();
+    mapController = MapController();
     _initializeMapElements();
   }
 
   void _initializeMapElements() {
-    polylines = <Polyline>{};
-    markers = <Marker>{};
+    polylines = [];
+    markers = [];
 
     if (widget.showPolyline && widget.points.isNotEmpty) {
       _createPolylines();
@@ -87,31 +89,31 @@ class _LiveTrackingMapWidgetState extends State<LiveTrackingMapWidget> {
 
     final List<LatLng> polylinePoints = widget.points.map((p) => LatLng(p.latitude, p.longitude)).toList();
 
-    polylines.add(
-      Polyline(
-        polylineId: PolylineId('tracking_path'),
-        points: polylinePoints,
-        color: widget.polylineColor,
-        width: 5,
-        geodesic: true,
-      ),
-    );
+    polylines.add(Polyline(points: polylinePoints, color: widget.polylineColor, strokeWidth: 4.0, isDotted: false));
   }
 
   /// Create markers untuk start, end, dan current location
-  void _createMarkers() async {
+  void _createMarkers() {
     // Start marker
     if (widget.points.isNotEmpty) {
       final startPoint = widget.points.first;
       markers.add(
         Marker(
-          markerId: const MarkerId('start_marker'),
-          position: LatLng(startPoint.latitude, startPoint.longitude),
-          infoWindow: InfoWindow(
-            title: 'Start Point',
-            snippet: 'Started at ${startPoint.timestamp.toString().split('.')[0]}',
+          point: LatLng(startPoint.latitude, startPoint.longitude),
+          width: 40,
+          height: 40,
+          child: GestureDetector(
+            onTap: () => _showMarkerInfo('Start Point', 'Started at ${startPoint.timestamp.toString().split('.')[0]}'),
+            child: Container(
+              decoration: BoxDecoration(
+                color: widget.startMarkerColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+              ),
+              child: const Icon(Icons.check_circle, color: Colors.white, size: 20),
+            ),
           ),
-          icon: widget.startMarkerIcon ?? await BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
         ),
       );
 
@@ -119,13 +121,21 @@ class _LiveTrackingMapWidgetState extends State<LiveTrackingMapWidget> {
       final endPoint = widget.points.last;
       markers.add(
         Marker(
-          markerId: const MarkerId('end_marker'),
-          position: LatLng(endPoint.latitude, endPoint.longitude),
-          infoWindow: InfoWindow(
-            title: 'End Point',
-            snippet: 'Ended at ${endPoint.timestamp.toString().split('.')[0]}',
+          point: LatLng(endPoint.latitude, endPoint.longitude),
+          width: 40,
+          height: 40,
+          child: GestureDetector(
+            onTap: () => _showMarkerInfo('End Point', 'Ended at ${endPoint.timestamp.toString().split('.')[0]}'),
+            child: Container(
+              decoration: BoxDecoration(
+                color: widget.endMarkerColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+              ),
+              child: const Icon(Icons.stop_circle, color: Colors.white, size: 20),
+            ),
           ),
-          icon: widget.endMarkerIcon ?? await BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
         ),
       );
     }
@@ -134,24 +144,52 @@ class _LiveTrackingMapWidgetState extends State<LiveTrackingMapWidget> {
     if (widget.currentLocation != null) {
       markers.add(
         Marker(
-          markerId: const MarkerId('current_marker'),
-          position: LatLng(widget.currentLocation!.latitude, widget.currentLocation!.longitude),
-          infoWindow: InfoWindow(
-            title: 'Current Location',
-            snippet: 'Accuracy: ${widget.currentLocation!.accuracy.toStringAsFixed(1)}m',
+          point: LatLng(widget.currentLocation!.latitude, widget.currentLocation!.longitude),
+          width: 40,
+          height: 40,
+          child: GestureDetector(
+            onTap: () => _showMarkerInfo(
+              'Current Location',
+              'Accuracy: ${widget.currentLocation!.accuracy.toStringAsFixed(1)}m',
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: widget.currentMarkerColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+              ),
+              child: const Icon(Icons.my_location, color: Colors.white, size: 20),
+            ),
           ),
-          icon: widget.currentMarkerIcon ?? await BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         ),
       );
     }
-
-    setState(() {
-      // Update markers
-    });
   }
 
-  /// Get bounds untuk zoom ke semua points
+  void _showMarkerInfo(String title, String description) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(description),
+          ],
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  /// Calculate bounds untuk zoom ke semua points
   LatLngBounds _getBounds(List<LocationPoint> points) {
+    if (points.isEmpty) {
+      return LatLngBounds(const LatLng(0, 0), const LatLng(0, 0));
+    }
+
     double minLat = points.first.latitude;
     double maxLat = points.first.latitude;
     double minLng = points.first.longitude;
@@ -164,7 +202,7 @@ class _LiveTrackingMapWidgetState extends State<LiveTrackingMapWidget> {
       maxLng = maxLng < point.longitude ? point.longitude : maxLng;
     }
 
-    return LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng));
+    return LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng));
   }
 
   @override
@@ -183,29 +221,35 @@ class _LiveTrackingMapWidgetState extends State<LiveTrackingMapWidget> {
     }
 
     final initialLocation = widget.currentLocation ?? widget.points.last;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Zoom to fit all points setelah first frame
+      if (widget.points.length > 1) {
+        final bounds = _getBounds(widget.points);
+        mapController.fitBounds(bounds, options: const FitBoundsOptions(padding: EdgeInsets.all(100)));
+      }
+      widget.onMapCreated?.call(mapController);
+    });
 
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(
-        target: LatLng(initialLocation.latitude, initialLocation.longitude),
-        zoom: widget.initialZoom,
+    return FlutterMap(
+      mapController: mapController,
+      options: MapOptions(
+        initialCenter: LatLng(initialLocation.latitude, initialLocation.longitude),
+        initialZoom: widget.initialZoom,
+        minZoom: 5.0,
+        maxZoom: 19.0,
       ),
-      onMapCreated: (controller) {
-        mapController = controller;
-
-        // Zoom to fit all points
-        if (widget.points.length > 1) {
-          final bounds = _getBounds(widget.points);
-          mapController.animateCamera(CameraUpdate.newLatLngBounds(bounds, 100));
-        }
-
-        widget.onMapCreated?.call(controller);
-      },
-      polylines: polylines,
-      markers: markers,
-      myLocationEnabled: true,
-      myLocationButtonEnabled: true,
-      compassEnabled: true,
-      mapToolbarEnabled: true,
+      children: [
+        // OpenStreetMap tiles
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'live_tracking_plugin',
+          // attribution: 'OpenStreetMap contributors',
+        ),
+        // Polylines
+        if (widget.showPolyline) PolylineLayer(polylines: polylines),
+        // Markers
+        if (widget.showMarkers) MarkerLayer(markers: markers),
+      ],
     );
   }
 
@@ -218,6 +262,12 @@ class _LiveTrackingMapWidgetState extends State<LiveTrackingMapWidget> {
       _initializeMapElements();
       setState(() {});
     }
+  }
+
+  @override
+  void dispose() {
+    mapController.dispose();
+    super.dispose();
   }
 }
 

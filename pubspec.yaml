@@ -18,8 +18,9 @@ dependencies:
   geolocator: ^11.0.0
   location: ^5.0.0
   
-  # Map & Visualization
-  google_maps_flutter: ^2.10.0
+  # Map & Visualization (OpenStreetMap)
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
   
   # Database & Storage
   sqflite: ^2.3.0
