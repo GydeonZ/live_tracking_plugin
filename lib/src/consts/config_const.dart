@@ -1,8 +1,10 @@
 enum GPSAccuracy {
+  lowest, // ~100m
   low, // ~50m
   medium, // ~20m
   high, // ~10m
   best, // ~5m
+  bestForNavigation, // ~3m
 }
 
 /// GPS Accuracy configuration constants

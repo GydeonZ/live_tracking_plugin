@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../entities/location_point.dart';
 import '../entities/tracking_session.dart';
 
@@ -23,7 +24,7 @@ class LiveTrackingApiService {
 
       return response.statusCode == 200 || response.statusCode == 201;
     } on DioException catch (e) {
-      print('Error uploading session: ${e.message}');
+      debugPrint('Error uploading session: ${e.message}');
       return false;
     }
   }
@@ -38,7 +39,7 @@ class LiveTrackingApiService {
 
       return response.statusCode == 200 || response.statusCode == 201;
     } on DioException catch (e) {
-      print('Error uploading points: ${e.message}');
+      debugPrint('Error uploading points: ${e.message}');
       return false;
     }
   }
@@ -59,7 +60,7 @@ class LiveTrackingApiService {
 
       return [];
     } on DioException catch (e) {
-      print('Error fetching sessions: ${e.message}');
+      debugPrint('Error fetching sessions: ${e.message}');
       return [];
     }
   }
@@ -75,7 +76,7 @@ class LiveTrackingApiService {
 
       return null;
     } on DioException catch (e) {
-      print('Error fetching session: ${e.message}');
+      debugPrint('Error fetching session: ${e.message}');
       return null;
     }
   }
@@ -93,7 +94,7 @@ class LiveTrackingApiService {
 
       return [];
     } on DioException catch (e) {
-      print('Error fetching points: ${e.message}');
+      debugPrint('Error fetching points: ${e.message}');
       return [];
     }
   }
@@ -104,7 +105,7 @@ class LiveTrackingApiService {
       final response = await dio.delete('/api/v1/tracking/sessions/$sessionId');
       return response.statusCode == 200;
     } on DioException catch (e) {
-      print('Error deleting session: ${e.message}');
+      debugPrint('Error deleting session: ${e.message}');
       return false;
     }
   }
@@ -116,7 +117,7 @@ class LiveTrackingApiService {
 
       return response.statusCode == 200;
     } on DioException catch (e) {
-      print('Error updating session: ${e.message}');
+      debugPrint('Error updating session: ${e.message}');
       return false;
     }
   }
