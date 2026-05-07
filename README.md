@@ -42,16 +42,39 @@ flutter pub get
 <string>This app needs access to your location for tracking in the background.</string>
 <key>NSLocationAlwaysUsageDescription</key>
 <string>This app needs access to your location for tracking in the background.</string>
+<key>BGTaskSchedulerPermittedIdentifiers</key>
+<array>
+    <string>com.pravera.flutter_foreground_task.refresh</string>
+</array>
+<key>UIBackgroundModes</key>
+<array>
+    <string>fetch</string>
+</array>
 ```
 
 ### Android Setup
 
 1. Update `compileSdkVersion` to 34+ in `android/app/build.gradle`.
 2. The plugin automatically handles location permissions via `geolocator` package.
-3. For background tracking, add to `AndroidManifest.xml`:
+3. For background tracking, add to `AndroidManifest.xml` and add [flutter_foreground_task](https://pub.dev/packages/flutter_foreground_task):
 
 ```xml
 <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+<!-- required -->
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+<!-- foregroundServiceType: dataSync -->
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+<!-- foregroundServiceType: remoteMessaging -->
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+
+<!-- Warning: Do not change service name. -->
+<service 
+    android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+    android:foregroundServiceType="dataSync|remoteMessaging"
+    android:exported="false" />
 ```
 
 ## Quick Start
@@ -608,6 +631,7 @@ For issues and questions, please visit:
 ## Acknowledgments
 
 Built with ❤️ using:
+- [flutter_foreground_task](https://pub.dev/packages/flutter_foreground_task) - Foreground task management
 - [geolocator](https://pub.dev/packages/geolocator) - GPS location
 - [google_maps_flutter](https://pub.dev/packages/google_maps_flutter) - Map widget
 - [sqflite](https://pub.dev/packages/sqflite) - Local database
