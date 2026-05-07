@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
-import '../models/location_point.dart';
-import '../models/tracking_session.dart';
+import '../entities/location_point.dart';
+import '../entities/tracking_session.dart';
 
 class DatabaseHelper {
   static const String _databaseName = 'live_tracking.db';

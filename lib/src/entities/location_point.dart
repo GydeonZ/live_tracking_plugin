@@ -102,7 +102,5 @@ class LocationPoint {
     return earthRadiusMeters * c;
   }
 
-  static double _toRadian(double degree) {
-    return degree * (3.14159265359 / 180.0);
-  }
+  static double _toRadian(double degree) => degree * pi / 180;
 }

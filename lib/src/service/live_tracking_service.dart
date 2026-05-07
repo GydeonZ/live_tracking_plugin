@@ -3,17 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 import 'package:get/get.dart';
-import '../models/location_point.dart';
-import '../models/tracking_session.dart';
-import '../database/database_helper.dart';
-
-/// Accuracy level untuk GPS tracking
-enum GPSAccuracy {
-  low, // ~50m
-  medium, // ~20m
-  high, // ~10m
-  best, // ~5m
-}
+import 'package:live_tracking_plugin/live_tracking_plugin.dart';
 
 /// Service untuk tracking GPS secara real-time
 class LiveTrackingService extends GetxService {

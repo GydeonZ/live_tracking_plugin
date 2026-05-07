@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import '../models/location_point.dart';
-import '../models/tracking_session.dart';
+import '../entities/location_point.dart';
+import '../entities/tracking_session.dart';
 
 /// API service untuk sinkronisasi data ke backend
 class LiveTrackingApiService {
@@ -46,7 +46,10 @@ class LiveTrackingApiService {
   /// Get all sessions dari server
   Future<List<TrackingSession>> getSessions({int limit = 50, int offset = 0}) async {
     try {
-      final response = await dio.get(endpointSessions ?? '/api/v1/tracking/sessions', queryParameters: {'limit': limit, 'offset': offset});
+      final response = await dio.get(
+        endpointSessions ?? '/api/v1/tracking/sessions',
+        queryParameters: {'limit': limit, 'offset': offset},
+      );
 
       if (response.statusCode == 200) {
         final data = response.data as Map<String, dynamic>;

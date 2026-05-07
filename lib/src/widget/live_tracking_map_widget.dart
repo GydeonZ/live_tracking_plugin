@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:live_tracking_plugin/live_tracking_plugin.dart';
+import '../entities/location_point.dart';
+import '../entities/tracking_session.dart';
 
 /// Widget untuk menampilkan tracking pada OpenStreetMap
 class LiveTrackingMapWidget extends StatefulWidget {
