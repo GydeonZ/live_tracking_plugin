@@ -92,11 +92,19 @@ class _TrackingScreenState extends State<TrackingScreen> {
     
     // Setup callbacks
     trackingService.onLocationUpdate = (point) {
-      print('Location updated: ${point.latitude}, ${point.longitude}');
+      debugPrint('Location updated: ${point.latitude}, ${point.longitude}');
     };
     
     trackingService.onError = (error) {
-      print('Tracking error: $error');
+      debugPrint('Tracking error: $error');
+    };
+    
+    trackingService.onTrackingStarted = () {
+      debugPrint('Tracking session started');
+    };
+    
+    trackingService.onTrackingStopped = () {
+      debugPrint('Tracking session stopped');
     };
   }
 
@@ -110,14 +118,28 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
     
     if (sessionId != null) {
-      print('Tracking started: $sessionId');
+      debugPrint('Tracking started: $sessionId');
+    }
+  }
+
+  Future<void> pauseTracking() async {
+    final success = await trackingService.pauseTracking();
+    if (success) {
+      debugPrint('Tracking paused');
+    }
+  }
+
+  Future<void> resumeTracking() async {
+    final success = await trackingService.resumeTracking();
+    if (success) {
+      debugPrint('Tracking resumed');
     }
   }
 
   Future<void> stopTracking() async {
     final sessionId = await trackingService.stopTracking();
     if (sessionId != null) {
-      print('Tracking stopped: $sessionId');
+      debugPrint('Tracking stopped: $sessionId');
     }
   }
 
@@ -134,6 +156,14 @@ class _TrackingScreenState extends State<TrackingScreen> {
               child: const Text('Start Tracking'),
             ),
             ElevatedButton(
+              onPressed: pauseTracking,
+              child: const Text('Pause Tracking'),
+            ),
+            ElevatedButton(
+              onPressed: resumeTracking,
+              child: const Text('Resume Tracking'),
+            ),
+            ElevatedButton(
               onPressed: stopTracking,
               child: const Text('Stop Tracking'),
             ),
@@ -146,6 +176,20 @@ class _TrackingScreenState extends State<TrackingScreen> {
 ```
 
 ## Usage Guide
+
+### Foreground Service (Automatic)
+
+When you call `startTracking()`, the plugin automatically:
+1. Initializes the foreground task with Android and iOS notification options
+2. Registers the task handler for GPS location tracking
+3. Enables auto-run on device boot
+4. Acquires wake lock to prevent device sleep during tracking
+
+No additional setup is required - the foreground service is configured internally with sensible defaults:
+- Android notification channel: `live_tracking` (LOW priority)
+- Event repeat interval: 1000ms
+- Auto-run on boot: Enabled
+- Wake lock: Enabled
 
 ### Tracking Accuracy Levels
 
@@ -166,15 +210,26 @@ await trackingService.startTracking(
 ### Pause and Resume Tracking
 
 ```dart
-// Pause tracking
-await trackingService.pauseTracking();
+// Pause current tracking session
+final paused = await trackingService.pauseTracking();
+if (paused) {
+  print('Tracking paused successfully');
+}
 
-// Resume tracking
-await trackingService.resumeTracking();
+// Resume paused tracking session
+final resumed = await trackingService.resumeTracking();
+if (resumed) {
+  print('Tracking resumed successfully');
+}
 
-// Stop and save
-await trackingService.stopTracking();
+// Stop and save the session
+final sessionId = await trackingService.stopTracking();
+if (sessionId != null) {
+  print('Tracking session stopped and saved: $sessionId');
+}
 ```
+
+**Note:** Pausing tracking suspends location updates without ending the session, allowing you to resume later. Stopping the session finalizes it with complete statistics (duration, distance, average speed, etc.).
 
 ### Display Tracking on Map
 
@@ -217,16 +272,21 @@ final syncManager = LiveTrackingPlugin.syncManager;
 
 // Check sync status
 final status = await syncManager.getSyncStatus();
-print('Pending items: ${status['totalPending']}');
-print('Is online: ${status['isOnline']}');
+debugPrint('Pending items: ${status['totalPending']}');
+debugPrint('Is online: ${status['isOnline']}');
 
 // Manually trigger sync
 await syncManager.syncNow();
 
 // Listen to connectivity changes
 syncManager.isOnline.listen((isOnline) {
-  print('Connection status: ${isOnline ? 'Online' : 'Offline'}');
+  debugPrint('Connection status: ${isOnline ? 'Online' : 'Offline'}');
 });
+
+// Get unsynced data
+final unsyncedData = await trackingService.getUnsyncedData();
+debugPrint('Unsynced sessions: ${unsyncedData['sessions'].length}');
+debugPrint('Unsynced points: ${unsyncedData['points'].length}');
 ```
 
 ### Get Recorded Sessions
@@ -235,13 +295,14 @@ syncManager.isOnline.listen((isOnline) {
 final allSessions = await trackingService.getAllSessions();
 
 for (final session in allSessions) {
-  print('Session: ${session.title}');
-  print('Distance: ${session.distanceMeters} meters');
-  print('Duration: ${session.getDuration().inMinutes} minutes');
+  debugPrint('Session: ${session.title}');
+  debugPrint('Distance: ${session.distanceMeters} meters');
+  debugPrint('Duration: ${session.durationSeconds} seconds');
+  debugPrint('Average Speed: ${session.averageSpeed} m/s');
   
   // Load points for this session
   final points = await trackingService.loadSessionPoints(session.id);
-  print('Points recorded: ${points.length}');
+  debugPrint('Points recorded: ${points.length}');
 }
 ```
 
@@ -254,15 +315,25 @@ final apiService = LiveTrackingPlugin.apiService;
 
 // Upload specific session
 final success = await apiService.uploadSession(session);
+if (success) {
+  debugPrint('Session uploaded successfully');
+}
 
 // Upload batch of points
 final pointsSuccess = await apiService.uploadLocationPoints(points);
+if (pointsSuccess) {
+  debugPrint('Points uploaded successfully');
+}
 
 // Set authentication token
-LiveTrackingPlugin.setAuthToken('new-token');
+LiveTrackingPlugin.setAuthToken('Bearer your-auth-token');
 
 // Clear authentication
 LiveTrackingPlugin.clearAuthToken();
+
+// Mark data as synced
+await trackingService.markSessionAsSynced(sessionId);
+await trackingService.markPointAsSynced(pointId);
 ```
 
 ## Backend API Requirements
@@ -366,10 +437,30 @@ Obx(() {
 });
 
 // Listen to total distance
-Obx(() => Text('Distance: ${trackingService.totalDistance.value}m'));
+Obx(() => Text('Distance: ${trackingService.totalDistance.value.toStringAsFixed(2)}m'));
 
 // Listen to tracking state
 Obx(() => Text(trackingService.isTracking.value ? 'Tracking...' : 'Idle'));
+
+// Listen to point count
+Obx(() => Text('Points: ${trackingService.pointCount.value}'));
+
+// Setup event callbacks
+trackingService.onLocationUpdate = (point) {
+  debugPrint('New location: ${point.latitude}, ${point.longitude}');
+};
+
+trackingService.onTrackingStarted = () {
+  debugPrint('Tracking session started');
+};
+
+trackingService.onTrackingStopped = () {
+  debugPrint('Tracking session completed');
+};
+
+trackingService.onError = (error) {
+  debugPrint('Error occurred: $error');
+};
 ```
 
 ### Database Access
@@ -411,22 +502,34 @@ await trackingService.startTracking(
 
 ```dart
 trackingService.onError = (errorMessage) {
-  // Handle error
+  debugPrint('Tracking error: $errorMessage');
+  // Handle error - show user notification
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text('Tracking error: $errorMessage')),
   );
 };
 
 // Check location permissions
-final hasPermission = await Geolocator.checkPermission();
-if (hasPermission == LocationPermission.denied) {
-  await Geolocator.requestPermission();
+LocationPermission permission = await Geolocator.checkPermission();
+if (permission == LocationPermission.denied) {
+  permission = await Geolocator.requestPermission();
+  if (permission == LocationPermission.denied) {
+    debugPrint('Location permission denied');
+    return;
+  }
+}
+
+if (permission == LocationPermission.deniedForever) {
+  // Open app settings
+  await Geolocator.openAppSettings();
 }
 
 // Check location services
 final locationEnabled = await Geolocator.isLocationServiceEnabled();
 if (!locationEnabled) {
+  debugPrint('Location services are disabled');
   // Show dialog to enable location services
+  await Geolocator.openLocationSettings();
 }
 ```
 
@@ -447,22 +550,40 @@ if (!locationEnabled) {
 ## Troubleshooting
 
 ### Location not being tracked
-- Check if location permissions are granted
-- Verify location services are enabled on device
-- Try a different accuracy level
-- Check internet connection for sync
+- ✅ Check if location permissions are granted (use `Geolocator.checkPermission()`)
+- ✅ Verify location services are enabled on device
+- ✅ Try a different accuracy level (start with `GPSAccuracy.high`)
+- ✅ Ensure you have internet connection for sync
+- ✅ Check device's GPS is working (test with Google Maps)
+- ✅ Verify `startTracking()` returns a valid sessionId
 
 ### Data not syncing
-- Verify backend API is accessible
-- Check network connectivity
-- Review sync status with `syncManager.getSyncStatus()`
-- Check auth token validity
+- ✅ Verify backend API endpoint is accessible
+- ✅ Check network connectivity with `syncManager.isOnline`
+- ✅ Review sync status with `syncManager.getSyncStatus()`
+- ✅ Verify auth token is valid: `LiveTrackingPlugin.setAuthToken()`
+- ✅ Check backend API response format matches requirements
+- ✅ Review unsynced data: `trackingService.getUnsyncedData()`
 
 ### High battery drain
-- Use lower accuracy level (GPSAccuracy.low)
-- Increase update interval
-- Reduce tracking time
-- Check for background tracking issues
+- ✅ Use lower accuracy level: `GPSAccuracy.low` or `GPSAccuracy.medium`
+- ✅ Increase update interval: `updateIntervalSeconds: 30` or higher
+- ✅ Increase accuracy threshold: `minAccuracyThreshold: 50.0`
+- ✅ Limit tracking sessions duration
+- ✅ Check for location stream errors in logs
+
+### Foreground service not running
+- ✅ Ensure location permissions are granted
+- ✅ Verify notification channel is properly configured
+- ✅ Check Android OS version (requires 5.0+)
+- ✅ Review device notification settings
+- ✅ Check app battery optimization settings
+
+### Database errors
+- ✅ Ensure write permissions are granted
+- ✅ Check available storage space
+- ✅ Verify database file is not corrupted
+- ✅ Clear app cache if persistent issues occur
 
 ## Contributing
 

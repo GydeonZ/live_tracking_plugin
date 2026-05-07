@@ -1,18 +1,75 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 import 'package:get/get.dart';
-import '../models/location_point.dart';
-import '../models/tracking_session.dart';
-import '../database/database_helper.dart';
+import 'package:live_tracking_plugin/live_tracking_plugin.dart';
 
-/// Accuracy level untuk GPS tracking
-enum GPSAccuracy {
-  low, // ~50m
-  medium, // ~20m
-  high, // ~10m
-  best, // ~5m
+/// Forground service for tracking GPS secara real-time
+class LiveTrackingTaskHandler extends TaskHandler {
+  StreamSubscription<Position>? _positionStream;
+
+  @override
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    debugPrint('[ForegroundTask] onStart called');
+    _startPositionStream();
+  }
+
+  @override
+  void onRepeatEvent(DateTime timestamp) {
+    FlutterForegroundTask.sendDataToMain({'type': 'heartbeat', 'timestamp': timestamp.toIso8601String()});
+  }
+
+  @override
+  void onReceiveData(Object data) {
+    // Terima perintah dari main isolate
+    if (data is Map) {
+      final command = data['command'];
+      if (command == 'stop') {
+        _positionStream?.cancel();
+      } else if (command == 'start') {
+        _startPositionStream();
+      }
+    }
+  }
+
+  void _startPositionStream() {
+    _positionStream?.cancel();
+    _positionStream =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 5),
+        ).listen(
+          (position) {
+            // Kirim data lokasi ke main isolate
+            FlutterForegroundTask.sendDataToMain({
+              'type': 'location',
+              'latitude': position.latitude,
+              'longitude': position.longitude,
+              'accuracy': position.accuracy,
+              'altitude': position.altitude,
+              'speed': position.speed,
+              'heading': position.heading,
+              'timestamp': position.timestamp.toIso8601String(),
+            });
+          },
+          onError: (e) {
+            FlutterForegroundTask.sendDataToMain({'type': 'error', 'message': e.toString()});
+          },
+        );
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp, bool isForeground) async {
+    await _positionStream?.cancel();
+    debugPrint('[ForegroundTask] onDestroy called');
+  }
+}
+
+// Entry point
+@pragma('vm:entry-point')
+TaskHandler startCallback() {
+  return LiveTrackingTaskHandler();
 }
 
 /// Service untuk tracking GPS secara real-time
@@ -73,6 +130,26 @@ class LiveTrackingService extends GetxService {
     double minAccuracyThreshold = 20.0,
   }) async {
     try {
+      // Init Foreground Task
+      FlutterForegroundTask.init(
+        androidNotificationOptions: AndroidNotificationOptions(
+          channelId: 'live_tracking',
+          channelName: 'Live Tracking',
+          channelDescription: 'GPS Tracking in progress',
+          channelImportance: NotificationChannelImportance.LOW,
+          priority: NotificationPriority.LOW,
+        ),
+        iosNotificationOptions: const IOSNotificationOptions(showNotification: true, playSound: false),
+        foregroundTaskOptions: ForegroundTaskOptions(
+          eventAction: (ForegroundTaskEventAction.repeat(1000)),
+          autoRunOnBoot: true,
+          allowWakeLock: true,
+        ),
+      );
+
+      // Set callback
+      FlutterForegroundTask.setTaskHandler(LiveTrackingTaskHandler());
+
       // Check permission
       final hasPermission = await _requestLocationPermission();
       if (!hasPermission) {
@@ -256,7 +333,7 @@ class LiveTrackingService extends GetxService {
         altitude: position.altitude,
         speed: position.speed,
         heading: position.heading,
-        timestamp: position.timestamp ?? DateTime.now(), // Fallback to current time if null
+        timestamp: position.timestamp, // Fallback to current time if null
         sessionId: currentSession.value!.id,
         isSynced: false,
       );
@@ -302,6 +379,8 @@ class LiveTrackingService extends GetxService {
   /// Get LocationAccuracy dari GPSAccuracy enum
   LocationAccuracy _gpsAccuracyToLocationAccuracy(GPSAccuracy accuracy) {
     switch (accuracy) {
+      case GPSAccuracy.lowest:
+        return LocationAccuracy.lowest;
       case GPSAccuracy.low:
         return LocationAccuracy.low;
       case GPSAccuracy.medium:
@@ -310,6 +389,8 @@ class LiveTrackingService extends GetxService {
         return LocationAccuracy.high;
       case GPSAccuracy.best:
         return LocationAccuracy.best;
+      case GPSAccuracy.bestForNavigation:
+        return LocationAccuracy.bestForNavigation;
     }
   }
 
