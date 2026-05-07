@@ -56,7 +56,7 @@ flutter pub get
 
 1. Update `compileSdkVersion` to 34+ in `android/app/build.gradle`.
 2. The plugin automatically handles location permissions via `geolocator` package.
-3. For background tracking, add to `AndroidManifest.xml` and add [flutter_foreground_task](https://pub.dev/packages/flutter_foreground_task):
+3. For background tracking, add to `AndroidManifest.xml` and add [this](https://pub.dev/packages/flutter_foreground_task) package to pubspec.yaml:
 
 ```xml
 <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
