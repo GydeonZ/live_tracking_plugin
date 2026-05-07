@@ -121,6 +121,19 @@ class LiveTrackingService extends GetxService {
     }
   }
 
+  /// Request notification permission (Android 13+)
+  Future<bool> _requestNotificationPermission() async {
+    try {
+      // Attempt to request notification permission for Android 13+
+      // Using permission_handler if available
+      await FlutterForegroundTask.requestNotificationPermission();
+      return true;
+    } catch (e) {
+      debugPrint('Notification permission error: $e');
+      return true; // Non-critical, continue anyway
+    }
+  }
+
   /// Start new tracking session
   Future<String?> startTracking({
     required String title,
@@ -149,6 +162,15 @@ class LiveTrackingService extends GetxService {
 
       // Set callback
       FlutterForegroundTask.setTaskHandler(LiveTrackingTaskHandler());
+
+      // Request notification permission (Android 13+)
+      await _requestNotificationPermission();
+
+      // Start foreground service with notification
+      await FlutterForegroundTask.startService(
+        notificationTitle: title,
+        notificationText: description ?? 'GPS Tracking in progress',
+      );
 
       // Check permission
       final hasPermission = await _requestLocationPermission();
